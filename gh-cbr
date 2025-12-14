@@ -1,35 +1,63 @@
 #!/usr/bin/env bash
-set -e
 
-echo "Hello gh-cbr!"
+set -euo pipefail
 
-# Snippets to help get started:
+format_branch() {
+  local color=$1
+  local label=$2
+  local branch=$3
+  local marker=" "
 
-# Determine if an executable is in the PATH
-# if ! type -p ruby >/dev/null; then
-#   echo "Ruby not found on the system" >&2
-#   exit 1
-# fi
+  [[ $branch == $CURRENT_BRANCH ]] && marker="*"
 
-# Pass arguments through to another command
-# gh issue list "$@" -R cli/cli
+  printf "${color}[${label}]${COLOR_RESET} ${marker} ${branch}\n"
+}
 
-# Using the gh api command to retrieve and format information
-# QUERY='
-#   query($endCursor: String) {
-#     viewer {
-#       repositories(first: 100, after: $endCursor) {
-#         nodes {
-#           nameWithOwner
-#           stargazerCount
-#         }
-#       }
-#     }
-#   }
-# '
-# TEMPLATE='
-#   {{- range $repo := .data.viewer.repositories.nodes -}}
-#     {{- printf "name: %s - stargazers: %v\n" $repo.nameWithOwner $repo.stargazerCount -}}
-#   {{- end -}}
-# '
-# exec gh api graphql -f query="${QUERY}" --paginate --template="${TEMPLATE}"
+readonly COLOR_RECENT="\033[35m"
+readonly COLOR_LOCAL="\033[34m"
+readonly COLOR_REMOTE="\033[33m"
+readonly COLOR_CURRENT="\033[1;32m"
+readonly COLOR_RESET="\033[0m"
+
+readonly CURRENT_BRANCH=$(git branch --show-current)
+
+BRANCH_LIST=$(
+  (
+    # fetch recent checkout branches
+    git reflog show --all | grep 'checkout: moving from' | awk '{print $NF}' | awk '!seen[$0]++' | while read branch; do
+      format_branch "$COLOR_RECENT" "RECENT" "$branch"
+    done
+    # fetch local branches
+    git branch --sort=-authordate --format="%(refname:short)" | awk '!seen[$0]++' | while read branch; do
+      format_branch "$COLOR_LOCAL" "LOCAL" "$branch"
+    done
+    # fetch remote branches
+    git branch --sort=authordate -r --format="%(refname:short)" | awk '!seen[$0]++' | while read branch; do
+      format_branch "$COLOR_REMOTE" "REMOTE" "$branch"
+    done
+  ) | awk '!seen[$NF]++' # remove duplicates based on branch name
+) 
+
+SELECTED_BRANCH=$(
+  echo "$BRANCH_LIST" \
+  | fzf \
+  --header-first \
+  --header 'checkout branch' \
+  --ansi \
+  --layout=reverse \
+  --preview-window=right,60% \
+  --preview "
+    branch=\$(echo {} | awk '{print \$NF}');
+    git log --color=always --date=short -n 50 --oneline \
+    --pretty=format:'%C(yellow)%h %C(cyan)%ad %C(reset)%s' \$branch 2>/dev/null \
+    || echo \"not found \$branch branch, deleted\"
+  " \
+  | awk '{print $NF}'
+)
+
+if [[ $SELECTED_BRANCH =~ origin/ ]]; then
+  LOCAL_BRANCH=${SELECTED_BRANCH#origin/}
+  git checkout -b "$LOCAL_BRANCH" "$SELECTED_BRANCH" 2>/dev/null || git checkout "$LOCAL_BRANCH"
+else
+  git checkout "$SELECTED_BRANCH"
+fi
