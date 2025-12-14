@@ -13,6 +13,8 @@ format_branch() {
   printf "${color}[${label}]${COLOR_RESET} ${marker} ${branch}\n"
 }
 
+readonly SINCE_DAY=${1:-7}
+
 readonly COLOR_RECENT="\033[35m"
 readonly COLOR_LOCAL="\033[34m"
 readonly COLOR_REMOTE="\033[33m"
@@ -24,7 +26,7 @@ readonly CURRENT_BRANCH=$(git branch --show-current)
 BRANCH_LIST=$(
   (
     # fetch recent checkout branches
-    git reflog show --all | grep 'checkout: moving from' | awk '{print $NF}' | awk '!seen[$0]++' | while read branch; do
+    git reflog show --all --since="$SINCE_DAY days ago" | grep 'checkout: moving from' | awk '{print $NF}' | awk '!seen[$0]++' | while read branch; do
       format_branch "$COLOR_RECENT" "RECENT" "$branch"
     done
     # fetch local branches
