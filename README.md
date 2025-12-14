@@ -1,6 +1,6 @@
 # gh-cbr
 
-A Bash script for interactively checking out Git branches with a fuzzy finder. 🚀
+A GitHub CLI extension for interactively checking out Git branches with a fuzzy finder. 🚀
 
 ## Features
 
@@ -13,6 +13,7 @@ A Bash script for interactively checking out Git branches with a fuzzy finder. �
 
 ## Dependencies
 
+- gh
 - `fzf` (fuzzy finder)
 
 ## Installation
